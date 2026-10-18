@@ -1,0 +1,21 @@
+name: cs2-performance-lab
+services:
+  backend:
+    build: ./backend
+    environment:
+      FACEIT_API_KEY: ${FACEIT_API_KEY:-}
+    restart: unless-stopped
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:5173:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
