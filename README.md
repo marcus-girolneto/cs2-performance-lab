@@ -2,7 +2,7 @@
 
 A personal Counter-Strike 2 analytics workspace built with Java 21, Spring Boot, React and TypeScript. Public Steam identity, source-aware match analytics, interactive charts and a focused training checklist. Available in English and Brazilian Portuguese.
 
-**Honest data first:** the initial dashboard uses 24 explicitly labeled fictional matches. The Steam identity belongs to `76561198103634204`; demo statistics do not. Real match history is available through the optional FACEIT integration.
+**Real data only:** no fabricated matches, sample statistics or saved identity fallback. Public profiles come from Steam; match history comes from FACEIT when configured. Missing data stays unavailable. The default player is `76561198103634204`; use the player search to open another profile.
 
 ## Run locally
 
@@ -19,9 +19,9 @@ Open **http://localhost:5173**. Stop with `docker compose down`. The application
 1. Create a server-side key in the [FACEIT developer portal](https://developers.faceit.com/).
 2. Copy `.env.example` to `.env`, and set `FACEIT_API_KEY`.
 3. Run `docker compose up -d --force-recreate backend`.
-4. Select **FACEIT** in the dashboard's source selector.
+4. Refresh the dashboard. FACEIT is the match source.
 
-The Steam account must be linked to FACEIT CS2. The adapter loads up to 20 recent matches and their player statistics. Private/unavailable data and missing credentials produce an explicit error; they never silently become demo matches. No API key is shipped to the browser. This integration has not been exercised against an authenticated account in this initial release.
+The Steam account must be linked to FACEIT CS2. The adapter loads up to 20 recent matches and their player statistics. Private/unavailable data and missing credentials produce an explicit error; no sample data is substituted. No API key is shipped to the browser. This integration has not been exercised against an authenticated account in this initial release.
 
 ### Development
 
@@ -44,12 +44,14 @@ Vite proxies `/api` to port 8080. Stop the Compose stack first to free port 5173
 
 ## Features
 
-- Live public Steam identity with a clearly labeled saved profile if Steam is unavailable.
+- Live public Steam identity with explicit loading/unavailable states.
+- Search by SteamID64 or Steam profile URL (including `/id/` vanity URLs).
+- Names link to Steam people search, which may require sign-in. Paste a result’s profile URL to open it in the app. Name results are not scraped or invented.
 - English / Brazilian Portuguese interface; language and training progress persist locally.
-- Source, map, match-count and result filters; map search; match detail dialog.
+- Map, match-count and result filters; map search; match detail dialog.
 - Aggregate K/D, win rate, round-weighted ADR and kill-weighted headshot percentage.
 - Interactive K/D chart and map breakdown derived from the active selection.
-- CSV export, including a demo filename prefix for sample data.
+- CSV export of real FACEIT results.
 - Rule-based training guidance, explicitly distinguished from an AI assessment.
 - Responsive keyboard-accessible layout, native dialog focus handling and reduced-motion support.
 
@@ -61,7 +63,6 @@ backend/
     Application.java        Spring Boot entry point
     PlayerController.java   Validated, read-only REST endpoints
     PlayerService.java      Steam / FACEIT adapters and bounded cache
-  src/main/resources/demo-matches.json
 frontend/
   src/main.tsx              Application screens and interactions
   src/data.ts               Types, aggregation, HTTP and CSV helpers
@@ -79,7 +80,7 @@ A small modular monolith: one API, one frontend, no database required. Training 
 | --- | --- | --- |
 | GET | `/api/v1/health` | Process health |
 | GET | `/api/v1/players/{steamId}` | Public Steam identity |
-| GET | `/api/v1/players/{steamId}/matches?source=demo` | Fixed illustrative dataset |
+| GET | `/api/v1/players/lookup?query=...` | Resolve a SteamID64 or validated Steam profile URL |
 | GET | `/api/v1/players/{steamId}/matches?source=faceit` | Recent FACEIT CS2 player results |
 
 Steam IDs must match `7656119[0-9]{10}`. Validation errors use HTTP 400. Missing FACEIT configuration returns 503; unavailable upstream data returns 502. Responses use Spring's Problem Details format. Upstream calls have connect/read deadlines. Responses are cached for five minutes with a bounded in-process cache.

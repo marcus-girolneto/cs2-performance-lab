@@ -1,6 +1,8 @@
 package dev.girolneto.cslab;
 
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +18,11 @@ public class PlayerController {
     @GetMapping("/health")
     public Map<String, String> health() { return Map.of("status", "ok"); }
 
+    @GetMapping("/players/lookup")
+    public Object lookup(@RequestParam @NotBlank @Size(max=200) String query) {
+        return players.lookup(query);
+    }
+
     @GetMapping("/players/{steamId}")
     public ResponseEntity<?> profile(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId) {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)))
@@ -24,7 +31,7 @@ public class PlayerController {
 
     @GetMapping("/players/{steamId}/matches")
     public ResponseEntity<?> matches(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId,
-                                     @RequestParam(defaultValue="demo") @Pattern(regexp="demo|faceit") String source) {
+                                     @RequestParam(defaultValue="faceit") @Pattern(regexp="faceit") String source) {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)))
             .body(players.matches(steamId, source));
     }

@@ -1773,3 +1773,57 @@ dialog::backdrop {
     scroll-behavior: auto !important;
   }
 }
+.player-search {
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 22px;
+}
+.player-search form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.player-search form > svg {
+  color: var(--accent);
+}
+.player-search input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: #e9ebee;
+  padding: 12px 0;
+  font-size: 13px;
+}
+.player-search p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 10px;
+}
+.player-search p[role="alert"] {
+  color: #d78585;
+}
+.steam-search-result {
+  border-top: 1px solid var(--border);
+  margin-top: 15px;
+  padding-top: 8px;
+}
+.steam-search-result a {
+  margin-top: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .player-search form {
+    flex-wrap: wrap;
+  }
+  .player-search input {
+    width: calc(100% - 40px);
+  }
+  .player-search form .button {
+    width: 100%;
+  }
+}

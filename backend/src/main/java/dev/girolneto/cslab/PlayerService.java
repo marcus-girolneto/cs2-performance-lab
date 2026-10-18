@@ -3,7 +3,6 @@ package dev.girolneto.cslab;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,29 +33,36 @@ public class PlayerService {
         this.json = json; this.faceitKey = faceitKey;
     }
 
-    public Object profile(String id) {
-        var cached = cache.get(id);
-        if (cached != null && cached.expires().isAfter(Instant.now())) return cached.value();
+    public Profile profile(String id) { return fetchProfile("profiles/" + id); }
+
+    public Profile lookup(String query) {
+        String value = query.strip();
+        if (value.matches("7656119[0-9]{10}")) return profile(value);
+        var match = java.util.regex.Pattern.compile("^(?:https://)?steamcommunity\\.com/(profiles/7656119[0-9]{10}|id/[a-zA-Z0-9_-]{1,64})/?$").matcher(value);
+        if (!match.matches()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use a SteamID64 or Steam profile URL");
+        return fetchProfile(match.group(1));
+    }
+
+    private Profile fetchProfile(String path) {
+        var cached = cache.get(path);
+        if (cached != null && cached.expires().isAfter(Instant.now())) return (Profile) cached.value();
         try {
             var factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            var doc = factory.newDocumentBuilder().parse(new ByteArrayInputStream(get("https://steamcommunity.com/profiles/" + id + "/?xml=1", false)));
-            if (text(doc, "steamID64").isBlank()) throw new IllegalStateException();
+            var doc = factory.newDocumentBuilder().parse(new ByteArrayInputStream(get("https://steamcommunity.com/" + path + "/?xml=1", false)));
+            String id = text(doc, "steamID64");
+            if (!id.matches("7656119[0-9]{10}")) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Steam profile not found");
             var result = new Profile(id, text(doc, "steamID"), text(doc, "avatarFull"),
                 "https://steamcommunity.com/profiles/" + id + "/", text(doc, "privacyState"), text(doc, "memberSince"), "steam", Instant.now());
-            cache.put(id, new Cached(Instant.now().plusSeconds(300), result));
+            cache.put(path, new Cached(Instant.now().plusSeconds(300), result));
             return result;
+        } catch (ResponseStatusException ex) { throw ex;
         } catch (Exception ex) { throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Steam profile unavailable"); }
     }
 
     public Object matches(String id, String source) {
-        if (source.equals("demo")) {
-            try (var input = new ClassPathResource("demo-matches.json").getInputStream()) {
-                return json.readTree(input);
-            } catch (Exception ex) { throw new IllegalStateException("Demo data unavailable", ex); }
-        }
         if (faceitKey.isBlank()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "FACEIT_API_KEY is not configured");
         String key = "faceit:" + id;
         var cached = cache.get(key);

@@ -40,7 +40,6 @@ import {
   getJson,
   mapName,
   readStored,
-  snapshot,
   stats,
   STEAM_ID,
   store,
@@ -49,6 +48,7 @@ import {
   type Profile,
 } from "./data";
 import "./styles.css";
+import { PlayerSearch } from "./PlayerSearch";
 
 type Page = "overview" | "matches" | "maps" | "training" | "sources";
 const nav = [
@@ -67,14 +67,26 @@ function App() {
   const locale = lang === "pt" ? "pt-BR" : "en-US";
   const [page, setPage] = useState<Page>("overview");
   const [mobileNav, setMobileNav] = useState(false);
-  const [source, setSource] = useState<"demo" | "faceit">("demo");
-  const [profile, setProfile] = useState<Profile>(snapshot);
+  const source = "faceit";
+  const [steamId, setSteamId] = useState(STEAM_ID);
+  const [loadedProfile, setProfile] = useState<Profile | null>(null);
+  const [profileError, setProfileError] = useState(false);
+  const profile = loadedProfile ?? {
+    steamId,
+    name: profileError ? t.noData : t.syncing,
+    avatar: "",
+    url: `https://steamcommunity.com/profiles/${steamId}/`,
+    visibility: "",
+    memberSince: "",
+    source: "",
+    fetchedAt: "",
+  };
   const [data, setData] = useState<MatchResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
   const [map, setMap] = useState("all");
-  const [period, setPeriod] = useState(24);
+  const [period, setPeriod] = useState(20);
   const [result, setResult] = useState("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Match | null>(null);
@@ -94,20 +106,22 @@ function App() {
   }, [done]);
   useEffect(() => {
     const controller = new AbortController();
-    getJson<Profile>(`/api/v1/players/${STEAM_ID}`, controller.signal)
+    setProfile(null);
+    setProfileError(false);
+    getJson<Profile>(`/api/v1/players/${steamId}`, controller.signal)
       .then(setProfile)
       .catch(() => {
-        if (!controller.signal.aborted) setProfile(snapshot);
+        if (!controller.signal.aborted) setProfileError(true);
       });
     return () => controller.abort();
-  }, [reload]);
+  }, [steamId, reload]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(false);
     setData(null);
     getJson<MatchResponse>(
-      `/api/v1/players/${STEAM_ID}/matches?source=${source}`,
+      `/api/v1/players/${steamId}/matches?source=${source}`,
       controller.signal,
     )
       .then((d) => {
@@ -121,7 +135,7 @@ function App() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [source, reload]);
+  }, [steamId, source, reload]);
   useEffect(() => {
     if (selected) dialog.current?.showModal();
     else dialog.current?.close();
@@ -163,7 +177,7 @@ function App() {
     setMap("all");
     setResult("all");
     setQuery("");
-    setPeriod(24);
+    setPeriod(20);
   };
   const chart = [...matches].reverse().map((m, index) => ({
     index: index + 1,
@@ -358,7 +372,7 @@ function App() {
           target="_blank"
           rel="noreferrer"
         >
-          <img src={profile.avatar} alt="" />
+          {profile.avatar && <img src={profile.avatar} alt="" />}
           <span>
             <strong>{profile.name}</strong>
             <small>
@@ -401,7 +415,9 @@ function App() {
               rel="noreferrer"
               className="top-avatar"
             >
-              <img src={profile.avatar} alt={profile.name} />
+              {profile.avatar && (
+                <img src={profile.avatar} alt={profile.name} />
+              )}
             </a>
           </div>
         </header>
@@ -437,6 +453,25 @@ function App() {
               {loading ? t.syncing : t.sync}
             </button>
           </section>
+          <PlayerSearch
+            lang={lang}
+            onSelect={(player) => {
+              setSteamId(player.steamId);
+              setProfile(player);
+              setData(null);
+              setLoading(true);
+              setSelected(null);
+              clear();
+              go("overview");
+            }}
+          />
+          {profileError && (
+            <p className="sample-warning" role="status">
+              {lang === "pt"
+                ? "Não foi possível obter o perfil na Steam. Tente atualizar."
+                : "Could not retrieve the Steam profile. Try refreshing."}
+            </p>
+          )}
           {page === "overview" && (
             <section className="hero">
               <img
@@ -449,16 +484,18 @@ function App() {
               <div className="hero-content">
                 <div className="hero-kicker">
                   <ShieldCheck size={14} />{" "}
-                  {profile.source === "snapshot"
-                    ? t.profileSnapshot
-                    : t.profileLive}
+                  {loadedProfile
+                    ? t.profileLive
+                    : profileError
+                      ? t.noData
+                      : t.syncing}
                 </div>
                 <div className="hero-player">
-                  <img src={profile.avatar} alt="" />
+                  {profile.avatar && <img src={profile.avatar} alt="" />}
                   <div>
                     <span className="player-label">PLAYER PROFILE</span>
                     <h2>{profile.name}</h2>
-                    <span className="steam-id">STEAM ID · {STEAM_ID}</span>
+                    <span className="steam-id">STEAM ID · {steamId}</span>
                   </div>
                 </div>
                 <a
@@ -483,7 +520,8 @@ function App() {
                   <span className="live-dot" /> STEAM COMMUNITY
                 </span>
                 <span>
-                  EST. 2013 <span className="sep">/</span> CS2 PERFORMANCE LAB
+                  {profile.memberSince} <span className="sep">/</span> CS2
+                  PERFORMANCE LAB
                 </span>
               </div>
             </section>
@@ -494,7 +532,7 @@ function App() {
                 className={`source-notice ${source === "faceit" ? "live" : ""}`}
               >
                 <Database size={16} />
-                <span>{source === "demo" ? t.demoNote : t.liveNote}</span>
+                <span>{t.liveNote}</span>
                 <button onClick={() => go("sources")}>
                   {t.sources}
                   <ArrowUpRight size={14} />
@@ -504,15 +542,7 @@ function App() {
                 <div className="filter-group">
                   <label>
                     <span className="sr-only">{t.matchSource}</span>
-                    <select
-                      value={source}
-                      onChange={(e) =>
-                        setSource(e.target.value as "demo" | "faceit")
-                      }
-                    >
-                      <option value="demo">{t.demo}</option>
-                      <option value="faceit">FACEIT</option>
-                    </select>
+                    <span className="button secondary">FACEIT</span>
                   </label>
                   <label>
                     <span className="sr-only">{t.map}</span>
@@ -539,7 +569,7 @@ function App() {
                   >
                     <option value={7}>{t.last7}</option>
                     <option value={14}>{t.last14}</option>
-                    <option value={24}>{t.last24}</option>
+                    <option value={20}>{t.last20}</option>
                   </select>
                 </label>
               </div>
@@ -612,25 +642,6 @@ function App() {
                           )}
                           {foot}
                         </div>
-                        <svg
-                          className="metric-spark"
-                          viewBox="0 0 110 40"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d={matches
-                              .slice()
-                              .reverse()
-                              .map(
-                                (m, j) =>
-                                  `${j ? "L" : "M"}${(j * 110) / Math.max(matches.length - 1, 1)},${40 - Math.min(38, m.kills * 1.1)}`,
-                              )
-                              .join(" ")}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                        </svg>
                       </article>
                     ))}
                   </section>
@@ -926,12 +937,6 @@ function App() {
                   status: t.optional,
                   icon: Trophy,
                   link: "https://developers.faceit.com/",
-                },
-                {
-                  title: t.demo,
-                  description: t.demoDesc,
-                  status: t.available,
-                  icon: Database,
                 },
                 {
                   title: t.demoParser,

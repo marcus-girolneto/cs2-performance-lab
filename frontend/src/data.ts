@@ -13,7 +13,7 @@ export type Match = {
   url: string | null;
 };
 export type MatchResponse = {
-  source: "demo" | "faceit";
+  source: "faceit";
   fetchedAt: string;
   matches: Match[];
 };
@@ -28,16 +28,6 @@ export type Profile = {
   fetchedAt: string;
 };
 export const STEAM_ID = "76561198103634204";
-export const snapshot: Profile = {
-  steamId: STEAM_ID,
-  name: "import io.ipadawan",
-  avatar: "/images/avatar.jpg",
-  url: `https://steamcommunity.com/profiles/${STEAM_ID}/`,
-  visibility: "public",
-  memberSince: "August 19, 2013",
-  source: "snapshot",
-  fetchedAt: "2026-10-18T21:00:00Z",
-};
 export const mapNames: Record<string, string> = {
   mirage: "Mirage",
   inferno: "Inferno",
@@ -118,7 +108,7 @@ export function exportCsv(matches: Match[]) {
   );
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${matches[0]?.id.startsWith("demo-") ? "demo" : "faceit"}-matches.csv`;
+  a.download = "faceit-matches.csv";
   a.click();
   URL.revokeObjectURL(url);
 }

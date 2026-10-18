@@ -12,10 +12,8 @@ export const dictionaries = {
     sync: "Atualizar",
     syncing: "Atualizando...",
     profile: "Ver na Steam",
-    demo: "Demonstração",
-    demoNote:
-      "Perfil Steam real · Partidas ilustrativas, não são suas estatísticas.",
-    liveNote: "Perfil Steam · Até 20 partidas recentes do FACEIT.",
+    liveNote:
+      "Somente dados reais · Partidas disponíveis quando a fonte FACEIT estiver conectada.",
     source: "Fonte",
     allMaps: "Todos os mapas",
     all: "Todas",
@@ -23,7 +21,7 @@ export const dictionaries = {
     losses: "Derrotas",
     last7: "Últimas 7 partidas",
     last14: "Últimas 14 partidas",
-    last24: "Até 24 partidas",
+    last20: "Até 20 partidas",
     kd: "K/D",
     winRate: "Taxa de vitória",
     adr: "Dano por round",
@@ -63,7 +61,6 @@ export const dictionaries = {
     connectionError:
       "Não foi possível carregar essa fonte. Para FACEIT, configure FACEIT_API_KEY no backend e confirme que o perfil está vinculado ao CS2.",
     retry: "Tentar novamente",
-    profileSnapshot: "Perfil salvo em 18/10/2026 · Steam indisponível agora",
     profileLive: "Perfil público via Steam",
     trainingTitle: "Pratique com intenção.",
     trainingSub: "Um plano simples. Uma melhoria por vez.",
@@ -99,8 +96,6 @@ export const dictionaries = {
       "Identidade e avatar públicos. Atualização com cache de 5 minutos. Não fornece histórico completo de partidas CS2.",
     faceitDesc:
       "Histórico e estatísticas de partidas CS2 via API oficial. Requer chave no servidor e conta FACEIT vinculada à Steam.",
-    demoDesc:
-      "24 partidas fictícias para explorar a interface. Não representam a performance deste jogador.",
     demoParser: "Demos e análise avançada",
     demoParserDesc:
       "Heatmaps, utilitárias, trades e posicionamento precisam de telemetria por round. Parser de demos ainda não implementado.",
@@ -139,9 +134,8 @@ export const dictionaries = {
     sync: "Refresh",
     syncing: "Refreshing...",
     profile: "View on Steam",
-    demo: "Demo",
-    demoNote: "Real Steam profile · Sample matches, not your statistics.",
-    liveNote: "Steam profile · Up to 20 recent FACEIT matches.",
+    liveNote:
+      "Real data only · Matches are available when the FACEIT source is connected.",
     source: "Source",
     allMaps: "All maps",
     all: "All",
@@ -149,7 +143,7 @@ export const dictionaries = {
     losses: "Losses",
     last7: "Last 7 matches",
     last14: "Last 14 matches",
-    last24: "Up to 24 matches",
+    last20: "Up to 20 matches",
     kd: "K/D",
     winRate: "Win rate",
     adr: "Damage / round",
@@ -189,8 +183,6 @@ export const dictionaries = {
     connectionError:
       "Could not load this source. For FACEIT, set FACEIT_API_KEY on the backend and make sure the profile is linked to CS2.",
     retry: "Try again",
-    profileSnapshot:
-      "Profile saved on Oct 18, 2026 · Steam currently unavailable",
     profileLive: "Public profile via Steam",
     trainingTitle: "Practice with purpose.",
     trainingSub: "A simple plan. One improvement at a time.",
@@ -227,8 +219,6 @@ export const dictionaries = {
       "Public identity and avatar. Cached for 5 minutes. Does not provide a complete CS2 match history.",
     faceitDesc:
       "CS2 match history and statistics from the official API. Requires a server-side key and a FACEIT account linked to Steam.",
-    demoDesc:
-      "24 fictional matches to explore the interface. These do not represent this player’s performance.",
     demoParser: "Demos & advanced analysis",
     demoParserDesc:
       "Heatmaps, utility, trades and positioning require round-level telemetry. Demo parsing is not implemented yet.",
