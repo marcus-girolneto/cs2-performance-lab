@@ -1,8 +1,15 @@
 export type Match = {
   id: string;
   map: string;
-  playedAt: string;
-  won: boolean;
+  playedAt: string | null;
+  displayedDate?: string;
+  mode?: string;
+  rating?: number | null;
+  firstKills?: number | null;
+  firstDeaths?: number | null;
+  timeToDamage?: number | null;
+  preaim?: number | null;
+  won: boolean | null;
   ownScore: number;
   enemyScore: number;
   kills: number;
@@ -13,7 +20,16 @@ export type Match = {
   url: string | null;
 };
 export type MatchResponse = {
-  source: "faceit";
+  source: "faceit" | "csrep-import" | "unavailable" | "leetify+csrep";
+  available?: boolean;
+  reason?: string;
+  sourceUrl?: string;
+  live?: boolean;
+  seasons?: { id: number; matches: number; reportedWinRate: number }[];
+  overview?: Record<string, number | string>;
+  providers?: { source: string; configured: boolean; available: boolean; matchCount: number; message: string }[];
+  leetifyProfile?: Record<string, unknown> | null;
+  csrepProfile?: Record<string, unknown> | null;
   fetchedAt: string;
   matches: Match[];
 };
@@ -26,6 +42,36 @@ export type Profile = {
   memberSince: string;
   source: string;
   fetchedAt: string;
+};
+export type SteamGameData = {
+  configured: boolean;
+  available: boolean;
+  reason: string;
+  ownsCs2: boolean;
+  playtimeMinutes: number | null;
+  recentPlaytimeMinutes: number | null;
+  stats: { name: string; value: number }[];
+  fetchedAt: string;
+};
+export type SearchHit = { name: string; avatar: string; profileUrl: string; source?: "community" | "friends" };
+export type Reputation = {
+  steamBans: {
+    available: boolean;
+    configured: boolean;
+    communityBanned: boolean;
+    vacBanned: boolean;
+    vacBanCount: number;
+    gameBanCount: number;
+    daysSinceLastBan: number;
+    economyBan: string;
+    fetchedAt: string;
+  };
+  community: { unverifiedReports: number; fetchedAt: string };
+  publicSignalScore: number | null;
+  scoreMeaning: string;
+  vacBanDeduction: number;
+  gameBanDeduction: number;
+  reportDeduction: number;
 };
 export const STEAM_ID = "76561198103634204";
 export const mapNames: Record<string, string> = {
@@ -108,7 +154,7 @@ export function exportCsv(matches: Match[]) {
   );
   const a = document.createElement("a");
   a.href = url;
-  a.download = "faceit-matches.csv";
+  a.download = "cs2-matches.csv";
   a.click();
   URL.revokeObjectURL(url);
 }

@@ -13,7 +13,13 @@ import java.util.Map;
 @RequestMapping("/api/v1")
 public class PlayerController {
     private final PlayerService players;
-    public PlayerController(PlayerService players) { this.players = players; }
+    private final SteamGameDataService steamGameData;
+    private final PlayerMatchSourcesService matchSources;
+    public PlayerController(PlayerService players, SteamGameDataService steamGameData, PlayerMatchSourcesService matchSources) {
+        this.players = players;
+        this.steamGameData = steamGameData;
+        this.matchSources = matchSources;
+    }
 
     @GetMapping("/health")
     public Map<String, String> health() { return Map.of("status", "ok"); }
@@ -23,15 +29,36 @@ public class PlayerController {
         return players.lookup(query);
     }
 
+    @GetMapping("/players/search")
+    public Object search(@RequestParam @NotBlank @Size(min=2, max=64) String query,
+                         @SessionAttribute(value="steamId", required=false) String requesterSteamId) {
+        return players.search(query, requesterSteamId);
+    }
+
     @GetMapping("/players/{steamId}")
     public ResponseEntity<?> profile(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId) {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)))
             .body(players.profile(steamId));
     }
 
+    @GetMapping("/players/{steamId}/steam-data")
+    public ResponseEntity<?> steamData(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(10)))
+            .body(steamGameData.get(steamId));
+    }
+
+    @GetMapping("/players/{steamId}/match-data")
+    public ResponseEntity<?> matchData(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(3)))
+            .body(matchSources.get(steamId));
+    }
+
+    @GetMapping("/players/{steamId}/analytics")
+    public Object analytics(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId) { return players.importedAnalytics(steamId); }
+
     @GetMapping("/players/{steamId}/matches")
     public ResponseEntity<?> matches(@PathVariable @Pattern(regexp="7656119[0-9]{10}") String steamId,
-                                     @RequestParam(defaultValue="faceit") @Pattern(regexp="faceit") String source) {
+                                     @RequestParam(defaultValue="premier") @Pattern(regexp="premier|gamersclub|all|faceit") String source) {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)))
             .body(players.matches(steamId, source));
     }

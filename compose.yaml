@@ -2,8 +2,18 @@ name: cs2-performance-lab
 services:
   backend:
     build: ./backend
+    volumes:
+      - ./.local-data:/data:ro
+      - community-data:/community
     environment:
+      IMPORT_DIRECTORY: /data
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:5173}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       FACEIT_API_KEY: ${FACEIT_API_KEY:-}
+      STEAM_API_KEY: ${STEAM_API_KEY:-}
+      LEETIFY_API_KEY: ${LEETIFY_API_KEY:-}
+      CSREP_API_KEY: ${CSREP_API_KEY:-}
+      COMMUNITY_DIRECTORY: /community
     restart: unless-stopped
     mem_limit: 512m
     security_opt:
@@ -19,3 +29,5 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+volumes:
+  community-data:

@@ -41,20 +41,38 @@ import {
   mapName,
   readStored,
   stats,
-  STEAM_ID,
   store,
   type Match,
   type MatchResponse,
   type Profile,
 } from "./data";
 import "./styles.css";
+import { Analytics } from "./Analytics";
+import { SteamLogin } from "./SteamLogin";
 import { PlayerSearch } from "./PlayerSearch";
+import { PlayerInspector } from "./PlayerInspector";
+import { LiveMatch } from "./LiveMatch";
 
-type Page = "overview" | "matches" | "maps" | "training" | "sources";
+type Page =
+  | "overview"
+  | "live"
+  | "matches"
+  | "maps"
+  | "training"
+  | "sources"
+  | "seasons"
+  | "performance"
+  | "weapons"
+  | "inventory";
 const nav = [
   { id: "overview", icon: LayoutDashboard },
+  { id: "live", icon: Activity },
   { id: "matches", icon: Swords },
   { id: "maps", icon: Layers3 },
+  { id: "seasons", icon: Trophy },
+  { id: "performance", icon: Activity },
+  { id: "weapons", icon: Target },
+  { id: "inventory", icon: Layers3 },
   { id: "training", icon: Crosshair },
   { id: "sources", icon: Database },
 ] as const;
@@ -67,9 +85,11 @@ function App() {
   const locale = lang === "pt" ? "pt-BR" : "en-US";
   const [page, setPage] = useState<Page>("overview");
   const [mobileNav, setMobileNav] = useState(false);
-  const source = "faceit";
-  const [steamId, setSteamId] = useState(STEAM_ID);
+  const [source, setSource] = useState("premier");
+  const [steamId, setSteamId] = useState("");
   const [loadedProfile, setProfile] = useState<Profile | null>(null);
+  const [inspectedProfile, setInspectedProfile] = useState<Profile | null>(null);
+  const profileReturnPath = useRef("/");
   const [profileError, setProfileError] = useState(false);
   const profile = loadedProfile ?? {
     steamId,
@@ -86,7 +106,7 @@ function App() {
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
   const [map, setMap] = useState("all");
-  const [period, setPeriod] = useState(20);
+  const [period, setPeriod] = useState(10000);
   const [result, setResult] = useState("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Match | null>(null);
@@ -97,6 +117,36 @@ function App() {
       ? v.filter((n) => Number.isInteger(n) && n >= 0 && n < 4)
       : [];
   });
+  function openPlayerProfile(player: Profile) {
+    if (!window.location.pathname.startsWith("/player/")) profileReturnPath.current = window.location.pathname + window.location.search;
+    window.history.pushState({}, "", `/player/${player.steamId}`);
+    setInspectedProfile(player);
+  }
+  function closePlayerProfile() {
+    window.history.pushState({}, "", profileReturnPath.current || "/");
+    setInspectedProfile(null);
+  }
+  useEffect(() => {
+    const syncProfileRoute = () => {
+      const match = window.location.pathname.match(/^\/player\/(7656119\d{10})\/?$/);
+      if (!match) {
+        setInspectedProfile(null);
+        return null;
+      }
+      const controller = new AbortController();
+      getJson<Profile>(`/api/v1/players/${match[1]}`, controller.signal)
+        .then(setInspectedProfile)
+        .catch(() => setInspectedProfile(null));
+      return controller;
+    };
+    const initialController = syncProfileRoute();
+    const onPopState = () => syncProfileRoute();
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      initialController?.abort();
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
   useEffect(() => {
     document.documentElement.lang = locale;
     store("cslab:lang", lang);
@@ -105,6 +155,11 @@ function App() {
     store("cslab:training", done);
   }, [done]);
   useEffect(() => {
+    if (!steamId) {
+      setProfile(null);
+      setProfileError(false);
+      return;
+    }
     const controller = new AbortController();
     setProfile(null);
     setProfileError(false);
@@ -116,6 +171,12 @@ function App() {
     return () => controller.abort();
   }, [steamId, reload]);
   useEffect(() => {
+    if (!steamId) {
+      setLoading(false);
+      setError(false);
+      setData(null);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError(false);
@@ -147,7 +208,10 @@ function App() {
         .filter(
           (m) =>
             (map === "all" || map === m.map) &&
-            (result === "all" || m.won === (result === "win")) &&
+            (result === "all" ||
+              (result === "draw"
+                ? m.won === null
+                : m.won === (result === "win"))) &&
             mapName(m.map).toLowerCase().includes(query.toLowerCase()),
         ),
     [data, period, map, result, query],
@@ -166,8 +230,13 @@ function App() {
           maximumFractionDigits: digits,
           minimumFractionDigits: digits,
         }).format(n);
-  const date = (d: string) =>
-    new Date(d).toLocaleDateString(locale, { day: "2-digit", month: "short" });
+  const date = (d: string | null) =>
+    d === null
+      ? t.noData
+      : new Date(d + (d.length === 10 ? "T12:00:00Z" : "")).toLocaleDateString(
+          locale,
+          { day: "2-digit", month: "short" },
+        );
   const go = (p: Page) => {
     setPage(p);
     setMobileNav(false);
@@ -177,11 +246,11 @@ function App() {
     setMap("all");
     setResult("all");
     setQuery("");
-    setPeriod(20);
+    setPeriod(10000);
   };
   const chart = [...matches].reverse().map((m, index) => ({
     index: index + 1,
-    label: `${mapName(m.map)} · ${date(m.playedAt)}`,
+    label: `${mapName(m.map)} · ${m.playedAt ? date(m.playedAt) : (m.displayedDate ?? t.noData)}`,
     kd: m.deaths ? Number((m.kills / m.deaths).toFixed(2)) : null,
   }));
   function Table({ limit }: { limit?: number }) {
@@ -195,6 +264,9 @@ function App() {
               <th>{t.score}</th>
               <th>K / D / A</th>
               <th>{t.kd}</th>
+              <th>Rating</th>
+              <th>FK / FD</th>
+              <th>TTD</th>
               <th>{t.adr}</th>
               <th>{t.date}</th>
               <th>
@@ -215,7 +287,7 @@ function App() {
                 </td>
                 <td>
                   <span className={`result ${m.won ? "win" : "loss"}`}>
-                    {m.won ? t.win : t.loss}
+                    {m.won === null ? t.draw : m.won ? t.win : t.loss}
                   </span>
                 </td>
                 <td className="score">
@@ -231,12 +303,22 @@ function App() {
                 <td className={m.kills >= m.deaths ? "positive" : ""}>
                   {number(m.deaths ? m.kills / m.deaths : null, 2)}
                 </td>
+                <td>{number(m.rating ?? null)}</td>
+                <td>
+                  {number(m.firstKills ?? null)} /{" "}
+                  {number(m.firstDeaths ?? null)}
+                </td>
+                <td>{number(m.timeToDamage ?? null)} ms</td>
                 <td>{number(m.adr, 1)}</td>
-                <td className="muted">{date(m.playedAt)}</td>
+                <td className="muted">
+                  {m.playedAt
+                    ? date(m.playedAt)
+                    : (m.displayedDate ?? t.noData)}
+                </td>
                 <td>
                   <button
                     className="icon-button"
-                    aria-label={`${t.details}: ${mapName(m.map)} ${date(m.playedAt)}`}
+                    aria-label={`${t.details}: ${mapName(m.map)} ${m.playedAt ? date(m.playedAt) : (m.displayedDate ?? t.noData)}`}
                     onClick={() => setSelected(m)}
                   >
                     <ChevronRight size={16} />
@@ -310,6 +392,43 @@ function App() {
       </div>
     );
   }
+  if (inspectedProfile) return <PlayerInspector profile={inspectedProfile} lang={lang} onClose={closePlayerProfile} />;
+  if (!steamId) {
+    return (
+      <main className="welcome-screen">
+        <div className="welcome-art" />
+        <header className="welcome-topbar">
+          <a className="brand" href="#">
+            <span className="brand-mark"><Crosshair size={23} /></span>
+            <span>CS2<span className="brand-lab">PERFORMANCE LAB</span></span>
+          </a>
+          <div className="welcome-actions">
+            <Globe2 size={15} />
+            <select aria-label={t.language} value={lang} onChange={(e) => setLang(e.target.value as Language)}>
+              <option value="pt">Português</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </header>
+        <section className="welcome-content">
+          <div className="welcome-eyebrow"><span /> CS2 PERFORMANCE LAB</div>
+          <h1>{lang === "pt" ? <>Seu jogo.<br /><em>Em perspectiva.</em></> : <>Your game.<br /><em>In perspective.</em></>}</h1>
+          <p>{lang === "pt" ? "Explore estatísticas reais de Counter-Strike 2. Conecte sua Steam ou procure qualquer perfil público para começar." : "Explore real Counter-Strike 2 stats. Connect your Steam account or find any public profile to get started."}</p>
+          <div className="welcome-options">
+            <div className="welcome-option">
+              <span className="welcome-option-icon"><ShieldCheck size={21} /></span>
+              <div><h2>{lang === "pt" ? "Conecte sua Steam" : "Connect your Steam"}</h2><p>{lang === "pt" ? "Entre com segurança usando o login oficial da Steam." : "Sign in securely with Steam's official login."}</p></div>
+              <SteamLogin lang={lang} onProfile={(id) => setSteamId(id)} />
+            </div>
+            <div className="welcome-divider"><span>{lang === "pt" ? "OU ENCONTRE UM JOGADOR" : "OR FIND A PLAYER"}</span></div>
+            <PlayerSearch lang={lang} onSelect={openPlayerProfile} />
+          </div>
+          <div className="welcome-foot"><span><Check size={14} /> {lang === "pt" ? "Sem conta necessária para explorar perfis públicos" : "No account needed to explore public profiles"}</span><span>{lang === "pt" ? "Seus dados continuam seus" : "Your data stays yours"}</span></div>
+        </section>
+        <div className="welcome-watermark">CS<span>2</span></div>
+      </main>
+    );
+  }
   return (
     <div className="app-shell">
       {mobileNav && (
@@ -366,22 +485,6 @@ function App() {
           {t.sources}
           <ArrowUpRight size={15} />
         </button>
-        <a
-          className="sidebar-user"
-          href={profile.url}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {profile.avatar && <img src={profile.avatar} alt="" />}
-          <span>
-            <strong>{profile.name}</strong>
-            <small>
-              <i />
-              {t.connected}
-            </small>
-          </span>
-          <ExternalLink size={14} />
-        </a>
       </aside>
       <div className="main-shell">
         <header className="topbar">
@@ -398,6 +501,17 @@ function App() {
             <strong>{t[page]}</strong>
           </div>
           <div className="top-actions">
+            <SteamLogin
+              lang={lang}
+              onProfile={(id) => {
+                setSteamId(id);
+                setData(null);
+                setLoading(true);
+                setReload((r) => r + 1);
+                clear();
+                go("overview");
+              }}
+            />
             <div className="language">
               <Globe2 size={15} />
               <select
@@ -430,6 +544,8 @@ function App() {
               <h1>
                 {page === "overview"
                   ? t.tagline
+                  : page === "live"
+                    ? t.liveSubtitle
                   : page === "training"
                     ? t.trainingTitle
                     : page === "sources"
@@ -437,33 +553,27 @@ function App() {
                       : t[page]}
               </h1>
               <p>
-                {page === "training"
+                {page === "live"
+                  ? t.liveDescription
+                  : page === "training"
                   ? t.trainingSub
                   : page === "sources"
                     ? t.sourcesSub
                     : t.subtitle}
               </p>
             </div>
-            <button
+            {page !== "live" && <button
               className="button secondary"
               disabled={loading}
               onClick={() => setReload((r) => r + 1)}
             >
               <RefreshCw size={15} className={loading ? "spin" : ""} />
               {loading ? t.syncing : t.sync}
-            </button>
+            </button>}
           </section>
           <PlayerSearch
             lang={lang}
-            onSelect={(player) => {
-              setSteamId(player.steamId);
-              setProfile(player);
-              setData(null);
-              setLoading(true);
-              setSelected(null);
-              clear();
-              go("overview");
-            }}
+            onSelect={openPlayerProfile}
           />
           {profileError && (
             <p className="sample-warning" role="status">
@@ -472,6 +582,7 @@ function App() {
                 : "Could not retrieve the Steam profile. Try refreshing."}
             </p>
           )}
+          {page === "live" && <LiveMatch lang={lang} />}
           {page === "overview" && (
             <section className="hero">
               <img
@@ -532,7 +643,7 @@ function App() {
                 className={`source-notice ${source === "faceit" ? "live" : ""}`}
               >
                 <Database size={16} />
-                <span>{t.liveNote}</span>
+                <span>{source === "faceit" ? t.liveNote : t.importNote}</span>
                 <button onClick={() => go("sources")}>
                   {t.sources}
                   <ArrowUpRight size={14} />
@@ -542,7 +653,20 @@ function App() {
                 <div className="filter-group">
                   <label>
                     <span className="sr-only">{t.matchSource}</span>
-                    <span className="button secondary">FACEIT</span>
+                    <select
+                      value={source}
+                      onChange={(e) => {
+                        setSource(e.target.value);
+                        setData(null);
+                        setLoading(true);
+                        clear();
+                      }}
+                    >
+                      <option value="premier">Premier · Valve</option>
+                      <option value="gamersclub">GamersClub</option>
+                      <option value="all">{t.allModes}</option>
+                      <option value="faceit">FACEIT</option>
+                    </select>
                   </label>
                   <label>
                     <span className="sr-only">{t.map}</span>
@@ -567,6 +691,7 @@ function App() {
                     value={period}
                     onChange={(e) => setPeriod(Number(e.target.value))}
                   >
+                    <option value={10000}>{t.allMatches}</option>
                     <option value={7}>{t.last7}</option>
                     <option value={14}>{t.last14}</option>
                     <option value={20}>{t.last20}</option>
@@ -581,7 +706,7 @@ function App() {
               ) : error ? (
                 <div className="error" role="alert">
                   <Database />
-                  <p>{t.connectionError}</p>
+                  <p>{source === "faceit" ? t.connectionError : t.noImport}</p>
                   <button
                     className="button"
                     onClick={() => setReload((r) => r + 1)}
@@ -591,6 +716,23 @@ function App() {
                 </div>
               ) : (
                 <>
+                  {source !== "faceit" && (
+                    <div className="import-context">
+                      <span>
+                        {t.importedAt}:{" "}
+                        {data &&
+                          new Date(data.fetchedAt).toLocaleString(locale)}
+                      </span>
+                      <a
+                        href={data?.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {t.viewSource}
+                        <ExternalLink size={13} />
+                      </a>
+                    </div>
+                  )}
                   <section className="metrics">
                     {[
                       {
@@ -615,9 +757,15 @@ function App() {
                         foot: "ADR",
                       },
                       {
-                        label: t.hs,
-                        value: number(metric.hs, 1),
-                        unit: "%",
+                        label: source === "faceit" ? t.hs : t.latestRating,
+                        value:
+                          source === "faceit"
+                            ? number(metric.hs, 1)
+                            : number(
+                                matches.find((m) => m.rating != null)?.rating ??
+                                  null,
+                              ),
+                        unit: source === "faceit" ? "%" : "",
                         icon: Target,
                         foot: `${matches.length} ${t.sample}`,
                       },
@@ -821,6 +969,7 @@ function App() {
                             ["all", t.all],
                             ["win", t.wins],
                             ["loss", t.losses],
+                            ["draw", t.draw],
                           ].map(([v, label]) => (
                             <button
                               key={v}
@@ -870,6 +1019,16 @@ function App() {
                 </>
               )}
             </>
+          )}
+          {["seasons", "performance", "weapons", "inventory"].includes(
+            page,
+          ) && (
+            <Analytics
+              key={page + steamId}
+              steamId={steamId}
+              lang={lang}
+              section={page}
+            />
           )}
           {page === "training" && (
             <section className="training-layout">
@@ -1000,7 +1159,9 @@ function App() {
               </div>
               <h2>{mapName(selected.map)}</h2>
               <p className="muted">
-                {new Date(selected.playedAt).toLocaleString(locale)}
+                {selected.playedAt
+                  ? date(selected.playedAt)
+                  : (selected.displayedDate ?? t.noData)}
               </p>
               <div className="match-score">
                 <span className={selected.won ? "positive" : ""}>
@@ -1009,7 +1170,11 @@ function App() {
                 <span>:</span>
                 <span>{selected.enemyScore}</span>
                 <small className={`result ${selected.won ? "win" : "loss"}`}>
-                  {selected.won ? t.win : t.loss}
+                  {selected.won === null
+                    ? t.draw
+                    : selected.won
+                      ? t.win
+                      : t.loss}
                 </small>
               </div>
               <div className="detail-stats">
@@ -1044,6 +1209,7 @@ function App() {
           )}
         </div>
       </dialog>
+      {inspectedProfile && <PlayerInspector profile={inspectedProfile} lang={lang} onClose={closePlayerProfile} />}
     </div>
   );
 }
